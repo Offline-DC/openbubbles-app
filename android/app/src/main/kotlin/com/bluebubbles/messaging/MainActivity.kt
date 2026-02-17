@@ -22,8 +22,74 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.FileInputStream
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : FlutterFragmentActivity(), ComponentCallbacks2 {
+    private val mouseOn = AtomicBoolean(false)
+    @Volatile private var rootOk: Boolean? = null
+
+    private fun checkRootOnce(): Boolean {
+        rootOk?.let { return it }
+            return try {
+                val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+                val exit = p.waitFor()
+                val ok = (exit == 0)
+                rootOk = ok
+                Log.d("DumbMouse", "root check exit=$exit ok=$ok")
+                ok
+            } catch (t: Throwable) {
+                rootOk = false
+                Log.e("DumbMouse", "root check failed", t)
+                false
+            }
+        }
+
+        private fun runAsRootAsync(cmd: String) {
+            Thread {
+                try {
+                    val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+
+                    val out = BufferedReader(InputStreamReader(p.inputStream)).readText().trim()
+                    val err = BufferedReader(InputStreamReader(p.errorStream)).readText().trim()
+
+                    val exit = p.waitFor()
+                    Log.d("DumbMouse", "cmd=$cmd exit=$exit out=$out err=$err")
+                } catch (t: Throwable) {
+                    Log.e("DumbMouse", "failed cmd=$cmd", t)
+                }
+            }.start()
+        }
+
+        private fun mouseEnable() {
+            if (!checkRootOnce()) return
+            if (mouseOn.compareAndSet(false, true)) {
+                runAsRootAsync("/data/adb/modules/DumbMouse/mouse enable")
+            } else {
+                Log.d("DumbMouse", "enable skipped (already on)")
+            }
+        }
+
+        private fun mouseDisable() {
+            if (!checkRootOnce()) return
+            if (mouseOn.compareAndSet(true, false)) {
+                runAsRootAsync("/data/adb/modules/DumbMouse/mouse disable")
+            } else {
+                Log.d("DumbMouse", "disable skipped (already off)")
+            }
+        }
+
+        override fun onStart() {
+            super.onStart()
+            mouseEnable()
+        }
+
+        override fun onStop() {
+            mouseDisable()
+            super.onStop()
+        }
+
     companion object {
         var engine: FlutterEngine? = null
         var engine_ready = false
