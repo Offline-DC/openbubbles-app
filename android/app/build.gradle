@@ -124,6 +124,7 @@ android {
             productFlavors.alpha.signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
+            signingConfig signingConfigs.release
         }
     }
     sourceSets {

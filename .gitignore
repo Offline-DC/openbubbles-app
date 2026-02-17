@@ -61,3 +61,6 @@ native-lib/target/**
 
 # FVM Version Cache
 .fvm/
+
+android/key.properties
+android/app/upload-keystore.jks
